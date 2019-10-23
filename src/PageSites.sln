@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PageSitesLib", "PageSites\PageSitesLib.csproj", "{299CBE27-D285-411A-95F1-9ACB45DFBD65}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PageSitesApp", "PageSitesApp\PageSitesApp.csproj", "{F76C2B74-54B1-4B15-A2DB-059B119EF7B8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PageSitesWeb", "PageSitesWeb\PageSitesWeb.csproj", "{A28C1409-AAB3-45C0-992D-77DA06D55ECF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{299CBE27-D285-411A-95F1-9ACB45DFBD65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{299CBE27-D285-411A-95F1-9ACB45DFBD65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{299CBE27-D285-411A-95F1-9ACB45DFBD65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{299CBE27-D285-411A-95F1-9ACB45DFBD65}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F76C2B74-54B1-4B15-A2DB-059B119EF7B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F76C2B74-54B1-4B15-A2DB-059B119EF7B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F76C2B74-54B1-4B15-A2DB-059B119EF7B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F76C2B74-54B1-4B15-A2DB-059B119EF7B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A28C1409-AAB3-45C0-992D-77DA06D55ECF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A28C1409-AAB3-45C0-992D-77DA06D55ECF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A28C1409-AAB3-45C0-992D-77DA06D55ECF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A28C1409-AAB3-45C0-992D-77DA06D55ECF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
