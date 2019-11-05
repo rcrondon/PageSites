@@ -1,42 +1,132 @@
 ﻿using HtmlAgilityPack;
+using Microsoft.Office.Interop.Excel;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
-using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
 
 namespace PageSitesLib
 {
     public class ManejadorPageSites
     {
+        private static WebClient wc { get; set; }
         public ManejadorPageSites()
         {
             ServicePointManager.Expect100Continue = true;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+            wc = new WebClient();
+            wc.Proxy = WebRequest.DefaultWebProxy;
+            wc.Credentials = CredentialCache.DefaultCredentials;
+            wc.Proxy.Credentials = CredentialCache.DefaultCredentials;
         }
 
-        public Dictionary<string, Dictionary<string, Dictionary<string, object>>> obtener_datos(List<string> listado)
+        public Dictionary<string, Dictionary<string, Dictionary<string, object>>> obtener_datos(string txt_listado)
         {
             var diccionario_datos = new Dictionary<string, Dictionary<string, Dictionary<string, object>>>();
+
+            List<string> listado = txt_listado.Replace("\n", "").Split('\r').Select(s => s.StartsWith("http://www.") ? s : s.StartsWith("http://") ? s : s.StartsWith("https://www.") ? s : s.StartsWith("https://") ? s : "https://" + s).ToList();
 
             foreach (var pagina in listado)
             {
                 var diccionario_paginas = new Dictionary<string, Dictionary<string, object>>();
                 diccionario_paginas.Add("Google PageSpeed", PageSpeed(pagina));
                 diccionario_paginas.Add("check-host.net", checkhost(pagina));
-                diccionario_paginas.Add("certspotter", certspotter(pagina));
-                diccionario_paginas.Add("observatory.security.mozilla.org", observatorysecurity(pagina));
+
+                var datos_certspotter = certspotter(pagina);
+                if (datos_certspotter.Values.Count > 0)
+                    diccionario_paginas.Add("certspotter", datos_certspotter);
+
+                var datos_observatorysecurity = observatorysecurity(pagina);
+                if (datos_observatorysecurity.Values.Count > 0)
+                    diccionario_paginas.Add("observatory.security.mozilla.org", datos_observatorysecurity);
 
                 diccionario_datos.Add(pagina, diccionario_paginas);
             }
 
             return diccionario_datos;
+        }
+
+        public bool exportar_excel(Dictionary<string, Dictionary<string, Dictionary<string, object>>> datos, string ruta_guardado)
+        {
+            try
+            {
+                Application wapp = new Application();
+                Worksheet wsheet;
+                Workbook wbook;
+                Range rng;
+
+                wapp.Visible = false;
+                wapp.DisplayAlerts = false;
+                wapp.UserControl = true;
+
+                wbook = wapp.Workbooks.Add(true);
+                wsheet = (Worksheet)wbook.ActiveSheet;
+
+                wsheet = (Worksheet)wbook.Worksheets.get_Item(1);
+
+                int columna = 2;
+                foreach (var pagina in datos)
+                {
+                    wsheet.Cells[columna, 2] = "Reporte de '" + pagina.Key + "'";
+                    rng = wapp.Sheets[1].Range[wapp.Sheets[1].Cells[columna, 2], wapp.Sheets[1].Cells[columna, 3]];
+                    rng.Merge();
+
+                    wapp.Sheets[1].Range[wapp.Sheets[1].Cells[1, 1], wapp.Sheets[1].Cells[columna, 3]].Cells.HorizontalAlignment = XlHAlign.xlHAlignCenter;
+                    wsheet.Cells[columna, 2].EntireRow.Font.Bold = true;
+                    wsheet.Cells[columna, 2].EntireRow.Font.Size = 16;
+
+                    foreach (var metricas in pagina.Value)
+                    {
+                        columna = columna + 1;
+                        wsheet.Cells[columna, 2] = "Datos de '" + metricas.Key + "'";
+
+                        rng = wapp.Sheets[1].Range[wapp.Sheets[1].Cells[columna, 2], wapp.Sheets[1].Cells[columna, 3]];
+                        rng.Merge();
+
+                        wapp.Sheets[1].Range[wapp.Sheets[1].Cells[1, 1], wapp.Sheets[1].Cells[columna, 3]].Cells.HorizontalAlignment = XlHAlign.xlHAlignCenter;
+                        wsheet.Cells[columna, 2].EntireRow.Font.Bold = true;
+                        wsheet.Cells[columna, 2].EntireRow.Font.Size = 14;
+                        wsheet.Cells[columna, 2].EntireRow.Font.Underline = true;
+
+                        foreach (var campo in metricas.Value)
+                        {
+                            columna = columna + 1;
+
+                            wsheet.Cells[columna, 2] = campo.Key;
+                            wsheet.Cells[columna, 3] = campo.Value;
+                        }
+                    }
+
+                    columna = columna + 1;
+                    wsheet.Cells[columna, 2] = "";
+                    columna = columna + 1;
+                }
+
+                wsheet.Columns["B"].ColumnWidth = 50.0;
+                wsheet.Columns["C"].ColumnWidth = 80.0;
+
+                wsheet.Columns["C"].Style.WrapText = true;
+
+                wbook.SaveAs(ruta_guardado, Type.Missing, Type.Missing, Type.Missing, Type.Missing, Type.Missing, XlSaveAsAccessMode.xlNoChange, Type.Missing, Type.Missing, Type.Missing, Type.Missing, Type.Missing);
+
+                wbook.Close(true);
+                wapp.Quit();
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+
+            return true;
+
         }
 
         //Paginas REST consultadas
@@ -46,7 +136,7 @@ namespace PageSitesLib
 
             try
             {
-                var json = new WebClient().DownloadString("https://www.googleapis.com/pagespeedonline/v4/runPagespeed?url=" + url);
+                var json = wc.DownloadString("https://www.googleapis.com/pagespeedonline/v4/runPagespeed?url=" + url);
                 var jss = new JavaScriptSerializer();
                 var table = jss.Deserialize<dynamic>(json);
 
@@ -78,14 +168,14 @@ namespace PageSitesLib
                     url = uri.Host;
                 }
 
-                var json = new WebClient().DownloadString("https://api.certspotter.com/v1/issuances?domain=" + url + "&expand=dns_names&expand=issuer&expand=cert");
+                var json = wc.DownloadString("https://api.certspotter.com/v1/issuances?domain=" + url + "&expand=dns_names&expand=issuer&expand=cert");
                 var jss = new JavaScriptSerializer();
                 var table = jss.Deserialize<dynamic>(json);
 
                 diccionario_tmp.Add("dns_names", string.Join(", ", table[0]["dns_names"]));
                 diccionario_tmp.Add("pubkey_sha256", table[0]["pubkey_sha256"]);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
 
             }
@@ -106,7 +196,7 @@ namespace PageSitesLib
                     url = uri.Host;
                 }
 
-                var json = new WebClient().DownloadString("https://http-observatory.security.mozilla.org/api/v1/analyze?host=" + url);
+                var json = wc.DownloadString("https://http-observatory.security.mozilla.org/api/v1/analyze?host=" + url);
                 var jss = new JavaScriptSerializer();
                 var table = jss.Deserialize<dynamic>(json);
 
@@ -120,7 +210,7 @@ namespace PageSitesLib
             {
 
             }
-            
+
             return diccionario_tmp;
 
         }
@@ -134,7 +224,7 @@ namespace PageSitesLib
             try
             {
                 HtmlDocument htmlDoc = new HtmlDocument();
-                htmlDoc.LoadHtml(new WebClient().DownloadString("https://check-host.net/ip-info?host=" + url));
+                htmlDoc.LoadHtml(wc.DownloadString("https://check-host.net/ip-info?host=" + url));
 
                 var datos1 = htmlDoc.DocumentNode.SelectNodes("//tr[@class='zebra']/td").Where(z => z.EndNode.Name == "td").Select(y => y.InnerText).Take(12).ToArray();
                 var datos2 = htmlDoc.DocumentNode.SelectNodes("//tr[@class='zebra']/td").Where(z => z.EndNode.Name == "td").Select(y => y.InnerText).Skip(12).Take(12).ToArray();
@@ -146,18 +236,15 @@ namespace PageSitesLib
 
                 diccionario_tmp = diccionario_tmp1.Concat(diccionario_tmp2).Concat(diccionario_tmp3).ToLookup(x => x.Key, x => x.Value).ToDictionary(x => x.Key, g => (object)string.Join(", ", g));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
 
             }
-            
+
             return diccionario_tmp;
 
         }
 
-        public void exportar_excel(Dictionary<string, Dictionary<string, Dictionary<string, object>>> datos, string ruta_guardado)
-        {
 
-        }
     }
 }
