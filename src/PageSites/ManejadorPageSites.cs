@@ -8,43 +8,155 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
 
 namespace PageSitesLib
 {
     public class ManejadorPageSites
     {
-        public Dictionary<string, Dictionary<string, object>> obtener_datos(List<string> listado)
+        public ManejadorPageSites()
         {
-            //var url = "http://html-agility-pack.net/";
-            //var web = new HtmlWeb();
-            //var doc = web.Load(url);
+            ServicePointManager.Expect100Continue = true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+        }
 
-            var diccionario_datos = new Dictionary<string, Dictionary<string, object>>();
+        public Dictionary<string, Dictionary<string, Dictionary<string, object>>> obtener_datos(List<string> listado)
+        {
+            var diccionario_datos = new Dictionary<string, Dictionary<string, Dictionary<string, object>>>();
 
             foreach (var pagina in listado)
             {
-                diccionario_datos.Add("PageSpeed", PageSpeed(pagina));
+                var diccionario_paginas = new Dictionary<string, Dictionary<string, object>>();
+                diccionario_paginas.Add("Google PageSpeed", PageSpeed(pagina));
+                diccionario_paginas.Add("check-host.net", checkhost(pagina));
+                diccionario_paginas.Add("certspotter", certspotter(pagina));
+                diccionario_paginas.Add("observatory.security.mozilla.org", observatorysecurity(pagina));
+
+                diccionario_datos.Add(pagina, diccionario_paginas);
             }
-            
+
             return diccionario_datos;
         }
 
         //Paginas REST consultadas
-        public Dictionary<string, object> PageSpeed(string url)
+        private Dictionary<string, object> PageSpeed(string url)
         {
             var diccionario_tmp = new Dictionary<string, object>();
 
-            var json = new WebClient().DownloadString("https://www.googleapis.com/pagespeedonline/v4/runPagespeed?url=" + url);
-            var jss = new JavaScriptSerializer();
-            var table = jss.Deserialize<dynamic>(json);
+            try
+            {
+                var json = new WebClient().DownloadString("https://www.googleapis.com/pagespeedonline/v4/runPagespeed?url=" + url);
+                var jss = new JavaScriptSerializer();
+                var table = jss.Deserialize<dynamic>(json);
 
-            diccionario_tmp.Add("url", table["id"]);
-            diccionario_tmp.Add("captchaResult", table["captchaResult"]);
-            diccionario_tmp.Add("median_DOM", table["loadingExperience"]["metrics"]["DOM_CONTENT_LOADED_EVENT_FIRED_MS"]["median"]);
-            diccionario_tmp.Add("score", table["ruleGroups"]["SPEED"]["score"]);
-            diccionario_tmp.Add("overall_category", table["loadingExperience"]["overall_category"]);
+                diccionario_tmp.Add("url", table["id"]);
+                diccionario_tmp.Add("captchaResult", table["captchaResult"]);
+                diccionario_tmp.Add("median_DOM", table["loadingExperience"]["metrics"]["DOM_CONTENT_LOADED_EVENT_FIRED_MS"]["median"]);
+                diccionario_tmp.Add("score", table["ruleGroups"]["SPEED"]["score"]);
+                diccionario_tmp.Add("overall_category", table["loadingExperience"]["overall_category"]);
+            }
+            catch (Exception)
+            {
+
+            }
+
 
             return diccionario_tmp;
+
+        }
+
+        private Dictionary<string, object> certspotter(string url)
+        {
+            var diccionario_tmp = new Dictionary<string, object>();
+
+            try
+            {
+                if (url.StartsWith("http://") || url.StartsWith("https://"))
+                {
+                    Uri uri = new Uri(url);
+                    url = uri.Host;
+                }
+
+                var json = new WebClient().DownloadString("https://api.certspotter.com/v1/issuances?domain=" + url + "&expand=dns_names&expand=issuer&expand=cert");
+                var jss = new JavaScriptSerializer();
+                var table = jss.Deserialize<dynamic>(json);
+
+                diccionario_tmp.Add("dns_names", string.Join(", ", table[0]["dns_names"]));
+                diccionario_tmp.Add("pubkey_sha256", table[0]["pubkey_sha256"]);
+            }
+            catch (Exception)
+            {
+
+            }
+
+            return diccionario_tmp;
+
+        }
+
+        private Dictionary<string, object> observatorysecurity(string url)
+        {
+            var diccionario_tmp = new Dictionary<string, object>();
+
+            try
+            {
+                if (url.StartsWith("http://") || url.StartsWith("https://"))
+                {
+                    Uri uri = new Uri(url);
+                    url = uri.Host;
+                }
+
+                var json = new WebClient().DownloadString("https://http-observatory.security.mozilla.org/api/v1/analyze?host=" + url);
+                var jss = new JavaScriptSerializer();
+                var table = jss.Deserialize<dynamic>(json);
+
+                diccionario_tmp.Add("grade", table["grade"]);
+                diccionario_tmp.Add("score", table["score"]);
+                diccionario_tmp.Add("likelihood_indicator", table["likelihood_indicator"]);
+                diccionario_tmp.Add("Server", table["response_headers"]["Server"]);
+                diccionario_tmp.Add("Set-Cookie", table["response_headers"]["Set-Cookie"]);
+            }
+            catch (Exception)
+            {
+
+            }
+            
+            return diccionario_tmp;
+
+        }
+
+
+        //Paginas donde se buscan con bosquejo
+        private Dictionary<string, object> checkhost(string url)
+        {
+            var diccionario_tmp = new Dictionary<string, object>();
+
+            try
+            {
+                HtmlDocument htmlDoc = new HtmlDocument();
+                htmlDoc.LoadHtml(new WebClient().DownloadString("https://check-host.net/ip-info?host=" + url));
+
+                var datos1 = htmlDoc.DocumentNode.SelectNodes("//tr[@class='zebra']/td").Where(z => z.EndNode.Name == "td").Select(y => y.InnerText).Take(12).ToArray();
+                var datos2 = htmlDoc.DocumentNode.SelectNodes("//tr[@class='zebra']/td").Where(z => z.EndNode.Name == "td").Select(y => y.InnerText).Skip(12).Take(12).ToArray();
+                var datos3 = htmlDoc.DocumentNode.SelectNodes("//tr[@class='zebra']/td").Where(z => z.EndNode.Name == "td").Select(y => y.InnerText).Skip(24).Take(12).ToArray();
+
+                var diccionario_tmp1 = Enumerable.Range(0, datos1.Length / 2).ToDictionary(i => datos1[2 * i], i => (object)datos1[2 * i + 1]);
+                var diccionario_tmp2 = Enumerable.Range(0, datos2.Length / 2).ToDictionary(i => datos2[2 * i], i => (object)datos2[2 * i + 1]);
+                var diccionario_tmp3 = Enumerable.Range(0, datos3.Length / 2).ToDictionary(i => datos3[2 * i], i => (object)datos3[2 * i + 1]);
+
+                diccionario_tmp = diccionario_tmp1.Concat(diccionario_tmp2).Concat(diccionario_tmp3).ToLookup(x => x.Key, x => x.Value).ToDictionary(x => x.Key, g => (object)string.Join(", ", g));
+            }
+            catch (Exception)
+            {
+
+            }
+            
+            return diccionario_tmp;
+
+        }
+
+        public void exportar_excel(Dictionary<string, Dictionary<string, Dictionary<string, object>>> datos, string ruta_guardado)
+        {
 
         }
     }
